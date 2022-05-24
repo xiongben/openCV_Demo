@@ -16,7 +16,7 @@
 </p>
 <div>
     <div class="control"><button id="startAndStop" disabled>Start</button></div>
-    <textarea class="code" rows="29" cols="80" id="codeEditor" spellcheck="false"></textarea>
+    <textarea class="code" rows="3" cols="80" id="codeEditor" spellcheck="false"></textarea>
 </div>
 <p class="err" id="errorMessage"></p>
 <div>
@@ -111,8 +111,7 @@ setTimeout(processVideo, 0);
 </script>
 <script type="text/javascript">
     let utils = new Utils('errorMessage');
-
-    utils.loadCode('codeSnippet', 'codeEditor');
+    // utils.loadCode('codeSnippet', 'codeEditor');
 
     let streaming = false;
     let videoInput = document.getElementById('videoInput');
@@ -135,7 +134,8 @@ setTimeout(processVideo, 0);
         startAndStop.innerText = 'Stop';
         videoInput.width = videoInput.videoWidth;
         videoInput.height = videoInput.videoHeight;
-        utils.executeCode('codeEditor');
+        // utils.executeCode('codeEditor');
+        utils.loadOpenCVprocess();
     }
 
     function onVideoStopped() {
