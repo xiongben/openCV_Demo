@@ -1,6 +1,7 @@
 function Utils(errorOutputId) { // eslint-disable-line no-unused-vars
     let self = this;
     this.errorOutput = document.getElementById(errorOutputId);
+    console.log("===init utils====");
 
     const OPENCV_URL = 'opencv.js';
     this.loadOpenCv = function(onloadCallback) {
@@ -37,11 +38,11 @@ function Utils(errorOutputId) { // eslint-disable-line no-unused-vars
     };
 
     this.createFileFromUrl = function(path, url, callback) {
-        console.log('==============');
-        console.log(path);
-        console.log(url);
-        console.log(callback);
-        console.log('==============');
+        // console.log('==============');
+        // console.log(path);
+        // console.log(url);
+        // console.log(callback);
+        // console.log('==============');
         let request = new XMLHttpRequest();
         request.open('GET', url, true);
         request.responseType = 'arraybuffer';
@@ -67,6 +68,14 @@ function Utils(errorOutputId) { // eslint-disable-line no-unused-vars
         img.onload = function() {
             canvas.width = img.width;
             canvas.height = img.height;
+            ctx.fillStyle = 'red';
+            // ctx.save();
+            // ctx.beginPath();
+            // ctx.arc(img.height/2, img.height/2, img.height/2, 0, Math.PI * 2, false);
+            // ctx.clip(); //剪切路径
+            // ctx.drawImage(img, 0, 0);
+            // //恢复状态
+            // ctx.restore();
             ctx.drawImage(img, 0, 0, img.width, img.height);
         };
         img.src = url;
@@ -115,6 +124,121 @@ function Utils(errorOutputId) { // eslint-disable-line no-unused-vars
             throw Error('Unknown code snippet type');
         }
         textArea.value = scriptNode.text.replace(/^\n/, '');
+    };
+
+    this.loadOpenCVprocess = function() {
+        // openCV运行主逻辑
+        let video = document.getElementById('videoInput');
+        let canvasOutput = document.getElementById('canvasOutput');
+        let src = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+        let dst = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+        let maskBg = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+        let addedPic = new cv.Mat(video.height, video.width, cv.CV_8UC4);
+        let mask = new cv.Mat.zeros(video.height, video.width, cv.CV_8UC1);
+        let gray = new cv.Mat();
+        let cap = new cv.VideoCapture(video);
+        let faces = new cv.RectVector();
+        let classifier = new cv.CascadeClassifier();
+
+
+
+        console.log("===============")
+        console.log(video.width, video.height)
+        console.log("===============")
+
+        //截图次数限制
+        let picture_count = 3;
+        let count_sec = 3; //截图之间的间隔
+
+
+        // load pre-trained classifiers
+        classifier.load('haarcascade_frontalface_default.xml');
+
+        const FPS = 30;
+        function processVideo() {
+            try {
+                if (!streaming) {
+                    // clean and stop.
+                    src.delete();
+                    dst.delete();
+                    mask.delete();
+                    maskBg.delete();
+                    addedPic.delete();
+                    gray.delete();
+                    faces.delete();
+                    classifier.delete();
+                    return;
+                }
+                let begin = Date.now();
+                // start processing.
+                cap.read(src);
+                // src.copyTo(dst);
+                cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY, 0);
+                // detect faces.
+                classifier.detectMultiScale(gray, faces, 1.3, 3, 0);
+
+                src.copyTo(maskBg);
+
+
+                let center = new cv.Point(video.width * (1/2), video.height * (1/2));
+                cv.circle(mask, center, video.height * (3/8), [255, 255, 255, 255], -1);
+
+                cv.add(maskBg, addedPic, dst, mask, cv.CV_8UC4);
+
+                // let rect = new cv.Rect((video.width - video.height)/2,0,video.height,video.height);
+                // dst.roi(rect);
+
+
+                // // 标准边框
+                // let regularPoint1 = new cv.Point(video.width * (1/8), video.height * (1/8));
+                // let regularPoint2 = new cv.Point(video.width * (7/8), video.height * (7/8));
+                // cv.rectangle(dst, regularPoint1, regularPoint2, [0, 255, 0, 255]);
+
+
+
+                // draw faces.
+                for (let i = 0; i < faces.size(); ++i) {
+                    let face = faces.get(i);
+
+                    // //调试用
+                    // let point1 = new cv.Point(face.x, face.y);
+                    // let point2 = new cv.Point(face.x + face.width, face.y + face.height);
+                    // cv.rectangle(dst, point1, point2, [255, 0, 0, 255]);
+
+                    // 判断头像大小和位置是否符合要求
+                    if(face.width <= video.width * (3/4) && face.width >= video.width * (1/4) && face.height <= video.height * (3/4) && face.height >= video.height * (1/4)) {
+                        if(face.x <= video.width * (3/8) && face.x >= video.width * (1/8) && face.y <= video.height * (3/8) && face.y >= video.height * (1/8)) {
+                            if(picture_count > 0) {
+                                picture_count--;
+                                setTimeout(function(){
+                                    let fullQuality = canvasOutput.toDataURL('image/png', 1)
+                                    console.log(fullQuality);
+                                }, 100);
+                                console.log('==========识别成功' + picture_count + '=============');
+                            }
+                        }
+                    }
+
+                }
+
+                if(picture_count == 0) {
+                    cv.circle(dst, center, video.height * (3/8) + 3, [0, 255, 0, 255], 6);
+                }else{
+                    cv.circle(dst, center, video.height * (3/8) + 3, [255, 0, 0, 255], 6);
+                }
+
+                cv.imshow('canvasOutput', dst);
+
+                // schedule the next one.
+                let delay = 1000/FPS - (Date.now() - begin);
+                setTimeout(processVideo, delay);
+            } catch (err) {
+                utils.printError(err);
+            }
+        };
+
+        // schedule the first one.
+        setTimeout(processVideo, 0);
     };
 
     this.addFileInputHandler = function(fileInputId, canvasId) {
